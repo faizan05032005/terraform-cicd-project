@@ -14,8 +14,8 @@ pipeline {
 
     environment {
         // Credentials stored in Jenkins (Secret text)
-        AWS_ACCESS_KEY_ID     = credentials('aws-access-key')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
+        AWS_ACCESS_KEY_ID     = AKIAXOLQ6XN3ROQFBMBU ('aws-access-key')
+        AWS_SECRET_ACCESS_KEY = 	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 ('aws-secret-key')
         AWS_DEFAULT_REGION    = 'ap-south-1'
     }
 
@@ -25,7 +25,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/<your-user>/terraform-cicd-project.git'
+                    url: 'https://github.com/faizan05032005/terraform-cicd-project.git'
             }
         }
 
