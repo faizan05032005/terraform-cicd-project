@@ -1,0 +1,106 @@
+pipeline {
+    agent any
+
+    // Option to destroy the infra instead of creating it
+    parameters {
+        booleanParam(name: 'DESTROY', defaultValue: false, description: 'Tick to destroy the infrastructure instead of creating it')
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        timeout(time: 60, unit: 'MINUTES')
+    }
+
+    environment {
+        // Credentials stored in Jenkins (Secret text)
+        AWS_ACCESS_KEY_ID     = credentials('aws-access-key')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
+        AWS_DEFAULT_REGION    = 'ap-south-1'
+    }
+
+    stages {
+
+        // Stage 1: Get the Terraform code from GitHub
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/<your-user>/terraform-cicd-project.git'
+            }
+        }
+
+        // Stage 2: Download provider and set up backend
+        stage('Terraform Init') {
+            steps {
+                sh 'terraform init -input=false'
+            }
+        }
+
+        // Stage 3: Check formatting and syntax
+        stage('Terraform Validate') {
+            steps {
+                sh 'terraform fmt -check'
+                sh 'terraform validate'
+            }
+        }
+
+        // Stage 4: Show what will be created and save the plan
+        stage('Terraform Plan') {
+            when { expression { return !params.DESTROY } }
+            steps {
+                sh 'terraform plan -input=false -out=tfplan'
+            }
+        }
+
+        // Stage 5: Human approval before creating anything
+        stage('Manual Approval') {
+            when { expression { return !params.DESTROY } }
+            steps {
+                input message: 'Approve Terraform Apply?', ok: 'Apply'
+            }
+        }
+
+        // Stage 6: Create the S3 bucket using the saved plan
+        stage('Terraform Apply') {
+            when { expression { return !params.DESTROY } }
+            steps {
+                sh 'terraform apply -input=false -auto-approve tfplan'
+            }
+        }
+
+        // Destroy flow (only runs when DESTROY is ticked)
+        stage('Plan Destroy') {
+            when { expression { return params.DESTROY } }
+            steps {
+                sh 'terraform plan -destroy -input=false -out=tfplan-destroy'
+            }
+        }
+
+        stage('Approve Destroy') {
+            when { expression { return params.DESTROY } }
+            steps {
+                input message: 'Approve Terraform DESTROY?', ok: 'Destroy'
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when { expression { return params.DESTROY } }
+            steps {
+                sh 'terraform apply -input=false -auto-approve tfplan-destroy'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully. S3 bucket is ready.'
+        }
+        failure {
+            echo 'Pipeline failed, check the logs.'
+        }
+        always {
+            cleanWs()
+        }
+    }
+}  
+
