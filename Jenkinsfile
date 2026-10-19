@@ -38,7 +38,7 @@ pipeline {
         stage('Terraform Init') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'terrafromuser',
-                                                  usernameVariable: 'AKIAXOLQ6XN3QUZEY75K',
+                                                  usernameVariable: 'AWS_acccess_key',
                                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     dir("${env.TF_DIR}") {
                         bat 'terraform init -input=false -no-color'
