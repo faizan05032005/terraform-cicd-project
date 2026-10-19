@@ -11,9 +11,6 @@ pipeline {
         TF_DIR             = '.'
         TF_IN_AUTOMATION   = 'true'
         TF_INPUT           = '0'
-        // Injects credentials across all stages automatically
-        AWS_ACCESS_KEY_ID     = credentials('terrafromuser')
-        AWS_SECRET_ACCESS_KEY = credentials('terrafromuser')
     }
 
     options {
@@ -40,8 +37,12 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                dir("${env.TF_DIR}") {
-                    sh 'terraform init -input=false -no-color'
+                withCredentials([usernamePassword(credentialsId: 'terrafromuser',
+                                                  usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    dir("${env.TF_DIR}") {
+                        sh 'terraform init -input=false -no-color'
+                    }
                 }
             }
         }
@@ -57,12 +58,16 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                dir("${env.TF_DIR}") {
-                    script {
-                        if (params.ACTION == 'destroy') {
-                            sh 'terraform plan -destroy -out=tfplan -input=false -no-color'
-                        } else {
-                            sh 'terraform plan -out=tfplan -input=false -no-color'
+                withCredentials([usernamePassword(credentialsId: 'terrafromuser',
+                                                  usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    dir("${env.TF_DIR}") {
+                        script {
+                            if (params.ACTION == 'destroy') {
+                                sh 'terraform plan -destroy -out=tfplan -input=false -no-color'
+                            } else {
+                                sh 'terraform plan -out=tfplan -input=false -no-color'
+                            }
                         }
                     }
                 }
@@ -79,8 +84,12 @@ pipeline {
 
         stage('Terraform Apply / Destroy') {
             steps {
-                dir("${env.TF_DIR}") {
-                    sh 'terraform apply -input=false -no-color tfplan'
+                withCredentials([usernamePassword(credentialsId: 'terrafromuser',
+                                                  usernameVariable: 'AWS_ACCESS_KEY_ID',
+                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    dir("${env.TF_DIR}") {
+                        sh 'terraform apply -input=false -no-color tfplan'
+                    }
                 }
             }
         }
@@ -95,7 +104,6 @@ pipeline {
         }
         always {
             dir("${env.TF_DIR}") {
-                // POSIX cleanup command for Linux
                 sh 'rm -f tfplan'
             }
         }
