@@ -1,5 +1,5 @@
 pipeline {
-    agent any   // Jenkins running on your Windows machine (uses cmd via 'bat')
+    agent any   // Jenkins running on your Windows machine (uses cmd via 'sh   ')
 
     parameters {
         choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Terraform action to run')
@@ -30,8 +30,8 @@ pipeline {
 
         stage('Verify Tools') {
             steps {
-                bat 'terraform version'
-                bat 'aws --version'
+                sh    'terraform version'
+                sh    'aws --version'
             }
         }
 
@@ -41,7 +41,7 @@ pipeline {
                                                   usernameVariable: 'AWS_acccess_key',
                                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     dir("${env.TF_DIR}") {
-                        bat 'terraform init -input=false -no-color'
+                        sh    'terraform init -input=false -no-color'
                     }
                 }
             }
@@ -50,8 +50,8 @@ pipeline {
         stage('Format & Validate') {
             steps {
                 dir("${env.TF_DIR}") {
-                    bat 'terraform fmt -check -recursive -no-color'
-                    bat 'terraform validate -no-color'
+                    sh    'terraform fmt -check -recursive -no-color'
+                    sh    'terraform validate -no-color'
                 }
             }
         }
@@ -64,9 +64,9 @@ pipeline {
                     dir("${env.TF_DIR}") {
                         script {
                             if (params.ACTION == 'destroy') {
-                                bat 'terraform plan -destroy -out=tfplan -input=false -no-color'
+                                sh    'terraform plan -destroy -out=tfplan -input=false -no-color'
                             } else {
-                                bat 'terraform plan -out=tfplan -input=false -no-color'
+                                sh    'terraform plan -out=tfplan -input=false -no-color'
                             }
                         }
                     }
@@ -88,7 +88,7 @@ pipeline {
                                                   usernameVariable: 'AWS_ACCESS_KEY_ID',
                                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     dir("${env.TF_DIR}") {
-                        bat 'terraform apply -input=false -no-color tfplan'   // applies the exact reviewed plan
+                        sh    'terraform apply -input=false -no-color tfplan'   // applies the exact reviewed plan
                     }
                 }
             }
@@ -104,7 +104,7 @@ pipeline {
         }
         always {
             dir("${env.TF_DIR}") {
-                bat 'if exist tfplan del /f /q tfplan'   // plan files can contain secrets, so clean up
+                sh    'if exist tfplan del /f /q tfplan'   // plan files can contain secrets, so clean up
             }
         }
     }
