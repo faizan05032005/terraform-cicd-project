@@ -1,9 +1,12 @@
 pipeline {
     agent any
 
-    // Option to destroy the infra instead of creating it
     parameters {
-        booleanParam(name: 'DESTROY', defaultValue: false, description: 'Tick to destroy the infrastructure instead of creating it')
+        booleanParam(
+            name: 'DESTROY',
+            defaultValue: false,
+            description: 'Tick to destroy the infrastructure instead of creating it'
+        )
     }
 
     options {
@@ -13,30 +16,36 @@ pipeline {
     }
 
     environment {
-        // Credentials stored in Jenkins (Secret text)
-        AWS_ACCESS_KEY_ID     = AKIAXOLQ6XN3ROQFBMBU ('aws-access-key')
-        AWS_SECRET_ACCESS_KEY = 	FmjtEEJoIK3tLD0nYqtcLkSCc1fOnZXOAopkyoR ('aws-secret-key')
-        AWS_DEFAULT_REGION    = 'ap-south-1'
+        // No keys here. AWS access comes from the IAM role on this EC2 server.
+        AWS_DEFAULT_REGION = 'ap-south-1'
+        TF_IN_AUTOMATION   = 'true'
     }
 
     stages {
 
-        // Stage 1: Get the Terraform code from GitHub
+        // Stage 1: Reuse the repo and credentials configured in the Jenkins job
         stage('Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/faizan05032005/terraform-cicd-project.git'
+                checkout scm
             }
         }
 
-        // Stage 2: Download provider and set up backend
+        // Stage 2: Confirm tools and AWS identity
+        stage('Verify Tools') {
+            steps {
+                sh 'terraform -version'
+                sh 'aws sts get-caller-identity || echo "aws cli not installed, skipping identity check"'
+            }
+        }
+
+        // Stage 3: Download the AWS provider
         stage('Terraform Init') {
             steps {
                 sh 'terraform init -input=false'
             }
         }
 
-        // Stage 3: Check formatting and syntax
+        // Stage 4: Check formatting and syntax
         stage('Terraform Validate') {
             steps {
                 sh 'terraform fmt -check'
@@ -44,7 +53,7 @@ pipeline {
             }
         }
 
-        // Stage 4: Show what will be created and save the plan
+        // Stage 5: Show what will be created and save the plan
         stage('Terraform Plan') {
             when { expression { return !params.DESTROY } }
             steps {
@@ -52,7 +61,7 @@ pipeline {
             }
         }
 
-        // Stage 5: Human approval before creating anything
+        // Stage 6: Human approval
         stage('Manual Approval') {
             when { expression { return !params.DESTROY } }
             steps {
@@ -60,15 +69,16 @@ pipeline {
             }
         }
 
-        // Stage 6: Create the S3 bucket using the saved plan
+        // Stage 7: Create the S3 bucket from the saved plan
         stage('Terraform Apply') {
             when { expression { return !params.DESTROY } }
             steps {
                 sh 'terraform apply -input=false -auto-approve tfplan'
+                sh 'terraform output'
             }
         }
 
-        // Destroy flow (only runs when DESTROY is ticked)
+        // Destroy flow (only when DESTROY is ticked)
         stage('Plan Destroy') {
             when { expression { return params.DESTROY } }
             steps {
@@ -92,14 +102,19 @@ pipeline {
     }
 
     post {
-    success { echo 'Pipeline completed successfully.' }
-    failure { echo 'Pipeline failed, check the logs.' }
-    always {
-        script {
-            try {
-                cleanWs()
-            } catch (err) {
-                echo "Workspace cleanup skipped: ${err.message}"
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+        failure {
+            echo 'Pipeline failed, check the logs.'
+        }
+        always {
+            script {
+                try {
+                    cleanWs()
+                } catch (err) {
+                    echo "Workspace cleanup skipped: ${err.message}"
+                }
             }
         }
     }
