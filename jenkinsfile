@@ -92,15 +92,15 @@ pipeline {
     }
 
     post {
-        success {
-            echo 'Pipeline completed successfully. S3 bucket is ready.'
-        }
-        failure {
-            echo 'Pipeline failed, check the logs.'
-        }
-        always {
-            cleanWs()
+    success { echo 'Pipeline completed successfully.' }
+    failure { echo 'Pipeline failed, check the logs.' }
+    always {
+        script {
+            try {
+                cleanWs()
+            } catch (err) {
+                echo "Workspace cleanup skipped: ${err.message}"
+            }
         }
     }
-}  
-
+}
