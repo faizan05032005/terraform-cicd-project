@@ -1,5 +1,5 @@
 pipeline {
-    agent any   // Jenkins running on your Windows machine (uses cmd via 'sh   ')
+    agent any
 
     parameters {
         choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Terraform action to run')
@@ -7,15 +7,18 @@ pipeline {
     }
 
     environment {
-        AWS_DEFAULT_REGION = 'ap-south-1'          // change to your region
-        TF_DIR             = '.'                   // folder containing your .tf files (e.g. 'terraform')
+        AWS_DEFAULT_REGION = 'ap-south-1'
+        TF_DIR             = '.'
         TF_IN_AUTOMATION   = 'true'
         TF_INPUT           = '0'
+        // Injects credentials across all stages automatically
+        AWS_ACCESS_KEY_ID     = credentials('terrafromuser')
+        AWS_SECRET_ACCESS_KEY = credentials('terrafromuser')
     }
 
     options {
         timestamps()
-        disableConcurrentBuilds()                  // prevents two runs fighting over the same state
+        disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 30, unit: 'MINUTES')
     }
@@ -24,25 +27,21 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                checkout scm                       // pulls the repo configured in the Jenkins job
+                checkout scm
             }
         }
 
         stage('Verify Tools') {
             steps {
-                sh    'terraform version'
-                sh    'aws --version'
+                sh 'terraform version'
+                sh 'aws --version'
             }
         }
 
         stage('Terraform Init') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'terrafromuser',
-                                                  usernameVariable: 'AWS_acccess_key',
-                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    dir("${env.TF_DIR}") {
-                        sh    'terraform init -input=false -no-color'
-                    }
+                dir("${env.TF_DIR}") {
+                    sh 'terraform init -input=false -no-color'
                 }
             }
         }
@@ -50,24 +49,20 @@ pipeline {
         stage('Format & Validate') {
             steps {
                 dir("${env.TF_DIR}") {
-                    sh    'terraform fmt -check -recursive -no-color'
-                    sh    'terraform validate -no-color'
+                    sh 'terraform fmt -check -recursive -no-color'
+                    sh 'terraform validate -no-color'
                 }
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws-terraform-user',
-                                                  usernameVariable: 'AWS_ACCESS_KEY_ID',
-                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    dir("${env.TF_DIR}") {
-                        script {
-                            if (params.ACTION == 'destroy') {
-                                sh    'terraform plan -destroy -out=tfplan -input=false -no-color'
-                            } else {
-                                sh    'terraform plan -out=tfplan -input=false -no-color'
-                            }
+                dir("${env.TF_DIR}") {
+                    script {
+                        if (params.ACTION == 'destroy') {
+                            sh 'terraform plan -destroy -out=tfplan -input=false -no-color'
+                        } else {
+                            sh 'terraform plan -out=tfplan -input=false -no-color'
                         }
                     }
                 }
@@ -84,12 +79,8 @@ pipeline {
 
         stage('Terraform Apply / Destroy') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'aws-terraform-user',
-                                                  usernameVariable: 'AWS_ACCESS_KEY_ID',
-                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    dir("${env.TF_DIR}") {
-                        sh    'terraform apply -input=false -no-color tfplan'   // applies the exact reviewed plan
-                    }
+                dir("${env.TF_DIR}") {
+                    sh 'terraform apply -input=false -no-color tfplan'
                 }
             }
         }
@@ -104,7 +95,8 @@ pipeline {
         }
         always {
             dir("${env.TF_DIR}") {
-                sh    'if exist tfplan del /f /q tfplan'   // plan files can contain secrets, so clean up
+                // POSIX cleanup command for Linux
+                sh 'rm -f tfplan'
             }
         }
     }
