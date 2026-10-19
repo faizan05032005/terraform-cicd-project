@@ -1,7 +1,7 @@
 variable "AWS_s3_Name" {
   type        = string
   description = "Name of the s3 bucket"
-  default     = "my_s3-cicd_terraform_123faizan"
+  default     = "my-s3-cicd-terraform-123faizan"
 
 }
 
